@@ -42,22 +42,30 @@ class_names = ['cardboard', 'glass', 'metal', 'paper', 'plastic', 'trash']
 
 # Fungsi prediksi
 def predict_image(img_path):
-    # Load & preprocess gambar
+    print("📂 Memproses gambar:", img_path)
+
     try:
-        img = image.load_img(img_path, target_size=(224, 224))
+        img = image.load_img(img_path, target_size=(240, 240), color_mode='grayscale')
     except Exception as e:
         raise ValueError(f"Gambar tidak valid atau rusak: {e}")
     
     img_array = image.img_to_array(img)
-    img_array = np.expand_dims(img_array, axis=0)
-    img_array = img_array / 255.0
+    print("🔍 Shape before reshape:", img_array.shape)
 
-    # Prediksi
-    prediction = model.predict(img_array)
+    img_array = img_array / 255.0
+    img_array = img_array.reshape(1, -1)  # flatten jadi (1, 57600)
+    print("📐 Shape final input model:", img_array.shape)
+
+    try:
+        prediction = model.predict(img_array)
+        print("✅ Prediksi berhasil")
+    except Exception as e:
+        print("🔥 ERROR saat model.predict:", e)
+        raise RuntimeError(f"Model error: {e}")
+
     predicted_index = np.argmax(prediction)
     predicted_class = class_names[predicted_index]
 
-    # Mapping ke 2 kelas utama
     if predicted_class in ['paper', 'cardboard']:
         final_class = 'Organik'
     else:
