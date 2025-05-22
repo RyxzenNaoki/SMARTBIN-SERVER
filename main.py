@@ -48,6 +48,13 @@ try:
 
 except Exception as e:
     print("❌ Gagal inisialisasi Firebase:", e)
+    
+print("📦 ENV Vars Loaded:")
+print("Project ID:", os.getenv("FB_SA_PROJECT_ID"))
+print("PK ID:", os.getenv("FB_SA_PRIVATE_KEY_ID"))
+print("Client Email:", os.getenv("FB_SA_CLIENT_EMAIL"))
+print("PK length:", len(os.getenv("FB_SA_PRIVATE_KEY") or "None"))
+
 
 
 @app.post("/classify")
