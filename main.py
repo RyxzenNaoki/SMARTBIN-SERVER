@@ -26,30 +26,29 @@ try:
     import firebase_admin
     from firebase_admin import credentials, firestore
 
-    possible_paths = [
-        "./firebase-key.json",
-        "./firebase_key.json",
-        "../utils/firebase-key.json",
-        "../utils/firebase_key.json",
-    ]
+    service_account = {
+        "type": "service_account",
+        "project_id": os.getenv("FB_SA_PROJECT_ID"),
+        "private_key_id": os.getenv("FB_SA_PRIVATE_KEY_ID"),
+        "private_key": (os.getenv("FB_SA_PRIVATE_KEY") or "").replace("\\n", "\n"),
+        "client_email": os.getenv("FB_SA_CLIENT_EMAIL"),
+        "client_id": os.getenv("FB_SA_CLIENT_ID"),
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_x509_cert_url": os.getenv("FB_SA_CLIENT_CERT_URL")
+    }
 
-    for path in possible_paths:
-        if os.path.exists(path):
-            print(f"Menggunakan kredensial Firebase dari: {path}")
-            cred = credentials.Certificate(path)
-            firebase_admin.initialize_app(cred)
-            db = firestore.client()
-            firebase_initialized = True
-            break
+    cred = credentials.Certificate(service_account)
+    firebase_admin.initialize_app(cred)
+    db = firestore.client()
+    firebase_initialized = True
 
-    if not firebase_initialized:
-        print("WARNING: File kredensial Firebase tidak ditemukan.")
-        print("Fitur Firebase dinonaktifkan.")
+    print("✅ Firebase berhasil diinisialisasi dari ENV")
 
-except ImportError:
-    print("Firebase Admin SDK tidak terinstal. Fitur Firebase dinonaktifkan.")
 except Exception as e:
-    print(f"Error saat inisialisasi Firebase: {e}")
+    print("❌ Gagal inisialisasi Firebase:", e)
+
 
 @app.post("/classify")
 async def classify_endpoint(file: UploadFile = File(...)):
