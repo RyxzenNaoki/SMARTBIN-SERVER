@@ -15,7 +15,7 @@ app = FastAPI(title="SmartBin Classification API")
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://smartbin-iot.vercel.app"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

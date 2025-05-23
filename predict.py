@@ -36,6 +36,9 @@ def download_model_if_needed():
 # Load model
 download_model_if_needed()
 model = load_model(model_path)
+print("🧠 Model summary:")
+model.summary()
+
 
 # Kelas asli TrashNet
 class_names = ['cardboard', 'glass', 'metal', 'paper', 'plastic', 'trash']
@@ -45,15 +48,15 @@ def predict_image(img_path):
     print("📂 Memproses gambar:", img_path)
 
     try:
-        img = image.load_img(img_path, target_size=(128, 128))  # <- sesuaikan dengan model
+        # Sesuaikan dengan ukuran input model kamu!
+        img = image.load_img(img_path, target_size=(128, 128))  # kalau model pakai RGB
     except Exception as e:
         raise ValueError(f"Gambar tidak valid atau rusak: {e}")
     
-    img_array = image.img_to_array(img)
-    print("🔍 Shape before expand:", img_array.shape)
+    img_array = image.img_to_array(img)              # (128, 128, 3)
+    img_array = img_array / 255.0                     # normalisasi
+    img_array = np.expand_dims(img_array, axis=0)    # (1, 128, 128, 3)
 
-    img_array = img_array / 255.0
-    img_array = np.expand_dims(img_array, axis=0)  # (1, 128, 128, 3)
     print("📐 Shape final input model:", img_array.shape)
 
     try:
