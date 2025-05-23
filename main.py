@@ -159,6 +159,15 @@ async def reset_status():
         return {"message": "Status berhasil direset"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+@app.get("/model-info")
+async def model_info():
+    from utils.predict import model
+    return {
+        "input_shape": str(model.input_shape),
+        "output_shape": str(model.output_shape),
+        "model_name": model.name if hasattr(model, 'name') else "unknown"
+    }
 
 if __name__ == "__main__":
     import uvicorn
