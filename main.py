@@ -3,7 +3,7 @@ import shutil
 import time
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from utils.predict import predict_image
+from utils.predict import predict_image, show_model_summary
 
 # Firebase global vars
 firebase_admin = None
@@ -159,6 +159,14 @@ async def reset_status():
         return {"message": "Status berhasil direset"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+
+
+@app.get("/model-summary")
+def print_model_summary():
+    show_model_summary()
+    return {"message": "Model summary printed to logs"}
+
 
 
 

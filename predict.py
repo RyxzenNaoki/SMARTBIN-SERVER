@@ -36,8 +36,10 @@ def download_model_if_needed():
 # Load model
 download_model_if_needed()
 model = load_model(model_path)
-print("🧠 Model summary:")
-model.summary()
+
+def show_model_summary():
+    print("🧠 Menampilkan struktur model:")
+    model.summary()
 
 
 # Kelas asli TrashNet
