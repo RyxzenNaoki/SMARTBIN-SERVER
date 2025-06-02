@@ -2,7 +2,7 @@ import os
 import numpy as np
 import requests
 from tensorflow.keras.models import load_model
-from tensorflow.keras.preprocessing import image
+from PIL import Image
 
 # Path ke model lokal setelah diunduh
 model_dir = os.path.join(os.path.dirname(__file__), '..', 'model')
@@ -35,41 +35,73 @@ def download_model_if_needed():
 
 # Load model
 download_model_if_needed()
+print("📥 Loading model from:", model_path)
 model = load_model(model_path)
+print("✅ Model loaded successfully!")
+print("🧠 Model summary:")
+model.summary()
+print("🔍 Model input shape:", model.input_shape)
+print("🔍 Model output shape:", model.output_shape)
 
 # Kelas asli TrashNet
 class_names = ['cardboard', 'glass', 'metal', 'paper', 'plastic', 'trash']
 
-# Fungsi prediksi
+# Fungsi prediksi dengan preprocessing yang benar
 def predict_image(img_path):
     print("📂 Memproses gambar:", img_path)
 
     try:
-        img = image.load_img(img_path, target_size=(240, 240), color_mode='grayscale')
+        # Buka gambar menggunakan PIL untuk handling yang lebih baik
+        img = Image.open(img_path)
+        
+        # Convert ke RGB jika belum (untuk handle RGBA, Grayscale, dll)
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+            print(f"🔄 Converted image from {img.mode} to RGB")
+        
+        # Resize ke ukuran yang diharapkan model (128x128)
+        img = img.resize((128, 128), Image.Resampling.LANCZOS)
+        print(f"📐 Resized to: {img.size}")
+        
+        # Convert ke numpy array
+        img_array = np.array(img)
+        print(f"🔍 Shape after conversion: {img_array.shape}")
+        
+        # Normalisasi pixel values ke range [0, 1]
+        img_array = img_array.astype(np.float32) / 255.0
+        
+        # Add batch dimension: (128, 128, 3) -> (1, 128, 128, 3)
+        img_array = np.expand_dims(img_array, axis=0)
+        
+        print("📐 Shape final input model:", img_array.shape)
+        
     except Exception as e:
+        print(f"❌ Error processing image: {e}")
         raise ValueError(f"Gambar tidak valid atau rusak: {e}")
-    
-    img_array = image.img_to_array(img)
-    print("🔍 Shape before reshape:", img_array.shape)
-
-    img_array = img_array / 255.0
-    img_array = img_array.reshape(1, -1)  # flatten jadi (1, 57600)
-    print("📐 Shape final input model:", img_array.shape)
 
     try:
+        print("🔥 Melakukan prediksi...")
         prediction = model.predict(img_array)
         print("✅ Prediksi berhasil")
+        print(f"📊 Prediction shape: {prediction.shape}")
+        print(f"📊 Prediction values: {prediction[0]}")
+        
     except Exception as e:
         print("🔥 ERROR saat model.predict:", e)
         raise RuntimeError(f"Model error: {e}")
 
-    predicted_index = np.argmax(prediction)
+    # Get class dengan confidence tertinggi
+    predicted_index = np.argmax(prediction[0])
     predicted_class = class_names[predicted_index]
+    confidence = float(prediction[0][predicted_index])
 
+    # Mapping ke kategori akhir
     if predicted_class in ['paper', 'cardboard']:
         final_class = 'Organik'
     else:
         final_class = 'Anorganik'
 
-    print(f"Hasil prediksi: {final_class} ({predicted_class})")
+    print(f"🎯 Raw prediction: {predicted_class} (confidence: {confidence:.4f})")
+    print(f"✅ Final result: {final_class}")
+    
     return final_class, predicted_class
