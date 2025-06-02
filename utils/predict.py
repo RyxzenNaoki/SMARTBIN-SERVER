@@ -56,30 +56,62 @@ organic_keywords = [
     'tissue', 'napkin', 'tisu'  # Tissue paper
 ]
 
-# Fungsi untuk mengecek apakah suatu item termasuk organik
+# FIXED: Keywords untuk klasifikasi anorganik yang lebih komprehensif
+anorganic_keywords = [
+    'glass', 'metal', 'plastic',  # Material anorganik utama
+    'bottle', 'can', 'aluminium', 'aluminum',  # Wadah logam/kaca
+    'steel', 'iron', 'copper', 'brass',  # Jenis logam
+    'polyethylene', 'polystyrene', 'pvc', 'pet',  # Jenis plastik
+    'synthetic', 'artificial', 'sintetis',  # Material sintetis
+    'electronic', 'elektronik', 'battery', 'baterai',  # Elektronik
+    'ceramic', 'keramik', 'porcelain',  # Keramik
+    'rubber', 'karet', 'foam', 'busa',  # Karet dan busa
+    'fabric', 'cloth', 'textile', 'kain',  # Tekstil sintetis
+    'wire', 'cable', 'kabel', 'kawat'  # Kabel dan kawat
+]
+
+# FIXED: Fungsi untuk mengecek apakah suatu item termasuk organik dengan logika yang diperbaiki
 def is_organic(predicted_class, confidence_threshold=0.3):
     """
     Menentukan apakah sampah termasuk organik berdasarkan:
     1. Kelas prediksi model
-    2. Keywords organik
+    2. Keywords organik dan anorganik
     3. Confidence threshold
+    4. Prioritas anorganik untuk material yang jelas anorganik
     """
     predicted_lower = predicted_class.lower()
     
-    # Cek klasifikasi dasar (paper, cardboard selalu organik)
+    # FIXED: Cek anorganik keywords terlebih dahulu (prioritas tinggi)
+    for keyword in anorganic_keywords:
+        if keyword in predicted_lower:
+            print(f"🔍 Found anorganic keyword: '{keyword}' in '{predicted_class}'")
+            return False
+    
+    # Klasifikasi berdasarkan kelas TrashNet yang jelas anorganik
+    if predicted_class in ['glass', 'metal', 'plastic']:
+        print(f"🔍 Class '{predicted_class}' is clearly anorganic")
+        return False
+    
+    # Klasifikasi berdasarkan kelas TrashNet yang jelas organik
     if predicted_class in ['paper', 'cardboard']:
+        print(f"🔍 Class '{predicted_class}' is clearly organic")
         return True
     
-    # Cek keywords organik dalam nama kelas
+    # Cek keywords organik
     for keyword in organic_keywords:
         if keyword in predicted_lower:
+            print(f"🔍 Found organic keyword: '{keyword}' in '{predicted_class}'")
             return True
     
-    # Trash bisa organik atau anorganik, tergantung konteks
-    # Untuk sekarang, kita anggap trash sebagai anorganik kecuali ada keyword organik
+    # FIXED: Trash bisa organik atau anorganik, default ke anorganik jika tidak ada keyword organik
     if predicted_class == 'trash':
-        return any(keyword in predicted_lower for keyword in organic_keywords)
+        # Cek apakah ada keyword organik dalam konteks trash
+        has_organic_keyword = any(keyword in predicted_lower for keyword in organic_keywords)
+        print(f"🔍 Trash classification - organic keywords found: {has_organic_keyword}")
+        return has_organic_keyword
     
+    # FIXED: Default ke anorganik jika tidak ada klasifikasi yang jelas
+    print(f"🔍 No clear classification for '{predicted_class}', defaulting to anorganic")
     return False
 
 # Fungsi prediksi dengan preprocessing yang benar
@@ -131,13 +163,16 @@ def predict_image(img_path):
     predicted_class = class_names[predicted_index]
     confidence = float(prediction[0][predicted_index])
 
-    # Mapping ke kategori akhir dengan logika yang diperbaiki
+    # FIXED: Mapping ke kategori akhir dengan logika yang diperbaiki
+    print(f"🎯 Raw prediction: {predicted_class} (confidence: {confidence:.4f})")
+    
     if is_organic(predicted_class, confidence):
         final_class = 'Organik'
+        print(f"✅ Classification result: ORGANIC")
     else:
         final_class = 'Anorganik'
+        print(f"✅ Classification result: ANORGANIC")
 
-    print(f"🎯 Raw prediction: {predicted_class} (confidence: {confidence:.4f})")
     print(f"✅ Final result: {final_class}")
     
     return final_class, predicted_class

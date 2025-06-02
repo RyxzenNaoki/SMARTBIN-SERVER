@@ -66,8 +66,9 @@ def get_today_date_id():
     """Generate date ID for today in format YYYY-MM-DD"""
     return datetime.now().strftime("%Y-%m-%d")
 
+# FIXED: Unified counter update function
 def update_trash_counter(trash_type):
-    """Update counter sampah berdasarkan jenis (Organik/Anorganik)"""
+    """Update counter sampah berdasarkan jenis (Organik/Anorganik) dengan schema terpadu"""
     if not firebase_initialized or db is None or transactional is None or SERVER_TIMESTAMP is None:
         print("Firebase tidak tersedia untuk update counter")
         return
@@ -76,63 +77,81 @@ def update_trash_counter(trash_type):
         today_id = get_today_date_id()
         timestamp = int(time.time() * 1000)
         
-        # Reference ke dokumen counter hari ini
-        counter_ref = db.collection("sampah_counter").document(today_id)
-        
-        # Gunakan transaction untuk update yang aman
+        # FIXED: Update both daily counter and main counter in one transaction
         @transactional
-        def update_in_transaction(transaction):
-            doc = counter_ref.get()
+        def update_unified_counter(transaction):
+            # Type assertion to help Pylance understand db is not None here
+            assert db is not None
             
-            if doc.exists:
-                data = doc.to_dict()
-                total = data.get('total', 0) + 1
-                organik = data.get('organik', 0)
-                anorganik = data.get('anorganik', 0)
+            # Update daily counter
+            daily_counter_ref = db.collection("sampah_counter").document(today_id)
+            daily_doc = daily_counter_ref.get()
+            
+            if daily_doc.exists:
+                daily_data = daily_doc.to_dict()
+                daily_total = daily_data.get('total', 0) + 1
+                daily_organik = daily_data.get('organik', 0)
+                daily_anorganik = daily_data.get('anorganik', 0)
                 
                 if trash_type == 'Organik':
-                    organik += 1
+                    daily_organik += 1
                 else:
-                    anorganik += 1
+                    daily_anorganik += 1
                 
-                transaction.update(counter_ref, {
-                    'total': total,
-                    'organik': organik,
-                    'anorganik': anorganik,
+                transaction.update(daily_counter_ref, {
+                    'total': daily_total,
+                    'organik': daily_organik,
+                    'anorganik': daily_anorganik,
                     'lastUpdate': timestamp,
                     'date': today_id
                 })
             else:
-                # Dokumen belum ada, buat baru
-                initial_data = {
+                # Create new daily document
+                daily_initial_data = {
                     'total': 1,
                     'organik': 1 if trash_type == 'Organik' else 0,
                     'anorganik': 1 if trash_type == 'Anorganik' else 0,
                     'date': today_id,
                     'lastUpdate': timestamp
                 }
-                transaction.set(counter_ref, initial_data)
-        
-        # Jalankan transaction
-        transaction = db.transaction()
-        update_in_transaction(transaction)
-        
-        # Update juga counter global untuk compatibility dengan dashboard lama
-        global_counter_ref = db.collection("sampah").document("counter")
-        
-        @transactional
-        def update_global_counter(transaction):
-            doc = global_counter_ref.get()
-            current_total = doc.to_dict().get('jumlah', 0) if doc.exists else 0
+                transaction.set(daily_counter_ref, daily_initial_data)
             
-            transaction.set(global_counter_ref, {
-                'jumlah': current_total + 1,
-                'unit': 'items',
-                'lastUpdate': SERVER_TIMESTAMP
-            }, merge=True)
+            # FIXED: Update main counter with organik/anorganik fields
+            main_counter_ref = db.collection("sampah").document("counter")
+            main_doc = main_counter_ref.get()
+            
+            if main_doc.exists:
+                main_data = main_doc.to_dict()
+                main_total = main_data.get('jumlah', 0) + 1
+                main_organik = main_data.get('organik', 0)
+                main_anorganik = main_data.get('anorganik', 0)
+                
+                if trash_type == 'Organik':
+                    main_organik += 1
+                else:
+                    main_anorganik += 1
+                
+                transaction.update(main_counter_ref, {
+                    'jumlah': main_total,
+                    'organik': main_organik,
+                    'anorganik': main_anorganik,
+                    'unit': 'items',
+                    'lastUpdate': SERVER_TIMESTAMP
+                })
+            else:
+                # Create new main counter document
+                main_initial_data = {
+                    'jumlah': 1,
+                    'organik': 1 if trash_type == 'Organik' else 0,
+                    'anorganik': 1 if trash_type == 'Anorganik' else 0,
+                    'unit': 'items',
+                    'lastUpdate': SERVER_TIMESTAMP
+                }
+                transaction.set(main_counter_ref, main_initial_data)
         
-        global_transaction = db.transaction()
-        update_global_counter(global_transaction)
+        # Execute transaction
+        transaction = db.transaction()
+        update_unified_counter(transaction)
         
         print(f"✅ Counter berhasil diupdate: {trash_type} (+1)")
         
@@ -186,7 +205,7 @@ async def classify_endpoint(file: UploadFile = File(...)):
                     "timestamp": timestamp
                 })
 
-                # Update counter sampah berdasarkan jenis
+                # FIXED: Update counter sampah berdasarkan jenis dengan schema terpadu
                 update_trash_counter(result)
 
                 print("Hasil berhasil disimpan ke Firestore")
@@ -239,6 +258,37 @@ async def get_today_counter():
             }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# FIXED: Add endpoint to get main counter with organik/anorganik breakdown
+@app.get("/counter/main")
+async def get_main_counter():
+    """Get main counter with organik/anorganik breakdown"""
+    if not firebase_initialized or db is None:
+        raise HTTPException(status_code=500, detail="Firestore tidak tersedia")
+
+    try:
+        doc_ref = db.collection("sampah").document("counter")
+        doc = doc_ref.get()
+        
+        if doc.exists:
+            data = doc.to_dict()
+            return {
+                "jumlah": data.get("jumlah", 0),
+                "organik": data.get("organik", 0),
+                "anorganik": data.get("anorganik", 0),
+                "unit": data.get("unit", "items"),
+                "lastUpdate": data.get("lastUpdate")
+            }
+        else:
+            return {
+                "jumlah": 0,
+                "organik": 0,
+                "anorganik": 0,
+                "unit": "items",
+                "lastUpdate": None
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
     
 @app.get("/status_sampah/esp32")
 async def get_status():
@@ -265,6 +315,37 @@ async def reset_status():
             "perlu_dibuka": False
         })
         return {"message": "Status berhasil direset"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# FIXED: Add endpoint to reset counters (for testing)
+@app.post("/reset-counters")
+async def reset_counters():
+    """Reset all counters to zero (for testing)"""
+    if not firebase_initialized or db is None:
+        raise HTTPException(status_code=500, detail="Firestore tidak tersedia")
+
+    try:
+        # Reset main counter
+        db.collection("sampah").document("counter").set({
+            'jumlah': 0,
+            'organik': 0,
+            'anorganik': 0,
+            'unit': 'items',
+            'lastUpdate': SERVER_TIMESTAMP
+        })
+        
+        # Reset today's counter
+        today_id = get_today_date_id()
+        db.collection("sampah_counter").document(today_id).set({
+            'total': 0,
+            'organik': 0,
+            'anorganik': 0,
+            'date': today_id,
+            'lastUpdate': int(time.time() * 1000)
+        })
+        
+        return {"message": "Semua counter berhasil direset"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
