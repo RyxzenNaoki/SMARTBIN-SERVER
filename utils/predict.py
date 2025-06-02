@@ -46,6 +46,42 @@ print("🔍 Model output shape:", model.output_shape)
 # Kelas asli TrashNet
 class_names = ['cardboard', 'glass', 'metal', 'paper', 'plastic', 'trash']
 
+# Keywords untuk klasifikasi organik yang lebih komprehensif
+organic_keywords = [
+    'paper', 'cardboard',  # Kertas dan kardus (biodegradable)
+    'food', 'leaf', 'leaves', 'makanan', 'daun',  # Makanan dan daun
+    'organic', 'bio', 'compost', 'organik',  # Keywords organik umum
+    'wood', 'kayu', 'ranting', 'branch',  # Material kayu
+    'fruit', 'vegetable', 'buah', 'sayur',  # Buah dan sayuran
+    'tissue', 'napkin', 'tisu'  # Tissue paper
+]
+
+# Fungsi untuk mengecek apakah suatu item termasuk organik
+def is_organic(predicted_class, confidence_threshold=0.3):
+    """
+    Menentukan apakah sampah termasuk organik berdasarkan:
+    1. Kelas prediksi model
+    2. Keywords organik
+    3. Confidence threshold
+    """
+    predicted_lower = predicted_class.lower()
+    
+    # Cek klasifikasi dasar (paper, cardboard selalu organik)
+    if predicted_class in ['paper', 'cardboard']:
+        return True
+    
+    # Cek keywords organik dalam nama kelas
+    for keyword in organic_keywords:
+        if keyword in predicted_lower:
+            return True
+    
+    # Trash bisa organik atau anorganik, tergantung konteks
+    # Untuk sekarang, kita anggap trash sebagai anorganik kecuali ada keyword organik
+    if predicted_class == 'trash':
+        return any(keyword in predicted_lower for keyword in organic_keywords)
+    
+    return False
+
 # Fungsi prediksi dengan preprocessing yang benar
 def predict_image(img_path):
     print("📂 Memproses gambar:", img_path)
@@ -95,8 +131,8 @@ def predict_image(img_path):
     predicted_class = class_names[predicted_index]
     confidence = float(prediction[0][predicted_index])
 
-    # Mapping ke kategori akhir
-    if predicted_class in ['paper', 'cardboard']:
+    # Mapping ke kategori akhir dengan logika yang diperbaiki
+    if is_organic(predicted_class, confidence):
         final_class = 'Organik'
     else:
         final_class = 'Anorganik'
