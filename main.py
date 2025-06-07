@@ -68,95 +68,48 @@ def get_today_date_id():
 
 # FIXED: Unified counter update function
 def update_trash_counter(trash_type):
-    """Update counter sampah berdasarkan jenis (Organik/Anorganik) dengan schema terpadu"""
-    if not firebase_initialized or db is None or transactional is None or SERVER_TIMESTAMP is None:
-        print("Firebase tidak tersedia untuk update counter")
+    if not firebase_initialized or db is None:
+        print("❌ Firebase belum siap")
         return
-    
+
     try:
         today_id = get_today_date_id()
         timestamp = int(time.time() * 1000)
-        
-        # FIXED: Update both daily counter and main counter in one transaction
-        @transactional
-        def update_unified_counter(transaction):
-            # Type assertion to help Pylance understand db is not None here
-            assert db is not None
-            
-            # Update daily counter
-            daily_counter_ref = db.collection("sampah_counter").document(today_id)
-            daily_doc = daily_counter_ref.get()
-            
-            if daily_doc.exists:
-                daily_data = daily_doc.to_dict()
-                daily_total = daily_data.get('total', 0) + 1
-                daily_organik = daily_data.get('organik', 0)
-                daily_anorganik = daily_data.get('anorganik', 0)
-                
-                if trash_type == 'Organik':
-                    daily_organik += 1
-                else:
-                    daily_anorganik += 1
-                
-                transaction.update(daily_counter_ref, {
-                    'total': daily_total,
-                    'organik': daily_organik,
-                    'anorganik': daily_anorganik,
-                    'lastUpdate': timestamp,
-                    'date': today_id
-                })
-            else:
-                # Create new daily document
-                daily_initial_data = {
-                    'total': 1,
-                    'organik': 1 if trash_type == 'Organik' else 0,
-                    'anorganik': 1 if trash_type == 'Anorganik' else 0,
-                    'date': today_id,
-                    'lastUpdate': timestamp
-                }
-                transaction.set(daily_counter_ref, daily_initial_data)
-            
-            # FIXED: Update main counter with organik/anorganik fields
-            main_counter_ref = db.collection("sampah").document("counter")
-            main_doc = main_counter_ref.get()
-            
-            if main_doc.exists:
-                main_data = main_doc.to_dict()
-                main_total = main_data.get('jumlah', 0) + 1
-                main_organik = main_data.get('organik', 0)
-                main_anorganik = main_data.get('anorganik', 0)
-                
-                if trash_type == 'Organik':
-                    main_organik += 1
-                else:
-                    main_anorganik += 1
-                
-                transaction.update(main_counter_ref, {
-                    'jumlah': main_total,
-                    'organik': main_organik,
-                    'anorganik': main_anorganik,
-                    'unit': 'items',
-                    'lastUpdate': SERVER_TIMESTAMP
-                })
-            else:
-                # Create new main counter document
-                main_initial_data = {
-                    'jumlah': 1,
-                    'organik': 1 if trash_type == 'Organik' else 0,
-                    'anorganik': 1 if trash_type == 'Anorganik' else 0,
-                    'unit': 'items',
-                    'lastUpdate': SERVER_TIMESTAMP
-                }
-                transaction.set(main_counter_ref, main_initial_data)
-        
-        # Execute transaction
-        transaction = db.transaction()
-        update_unified_counter(transaction)
-        
+
+        # Referensi dokumen
+        daily_ref = db.collection("sampah_counter").document(today_id)
+        main_ref = db.collection("sampah").document("counter")
+
+        # Ambil data lama
+        daily_doc = daily_ref.get().to_dict() if daily_ref.get().exists else {}
+        main_doc = main_ref.get().to_dict() if main_ref.get().exists else {}
+
+        # Hitung data baru
+        new_daily = {
+            'total': daily_doc.get('total', 0) + 1,
+            'organik': daily_doc.get('organik', 0) + (1 if trash_type == 'Organik' else 0),
+            'anorganik': daily_doc.get('anorganik', 0) + (1 if trash_type == 'Anorganik' else 0),
+            'date': today_id,
+            'lastUpdate': timestamp
+        }
+
+        new_main = {
+            'jumlah': main_doc.get('jumlah', 0) + 1,
+            'organik': main_doc.get('organik', 0) + (1 if trash_type == 'Organik' else 0),
+            'anorganik': main_doc.get('anorganik', 0) + (1 if trash_type == 'Anorganik' else 0),
+            'unit': 'items',
+            'lastUpdate': SERVER_TIMESTAMP
+        }
+
+        # Simpan ke Firestore
+        daily_ref.set(new_daily)
+        main_ref.set(new_main)
+
         print(f"✅ Counter berhasil diupdate: {trash_type} (+1)")
-        
+    
     except Exception as e:
-        print(f"❌ Error update counter: {e}")
+        print(f"❌ Gagal update counter: {e}")
+
 
 @app.post("/classify")
 async def classify_endpoint(file: UploadFile = File(...)):
