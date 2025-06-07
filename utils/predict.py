@@ -54,7 +54,7 @@ def predict_image(img_path):
         confidence = float(prediction[0][0])
         print(f"📊 Confidence: {confidence:.4f}")
 
-        result = 'Anorganik' if confidence >= 0.5 else 'Organik'
+        result = 'Anorganik' if confidence >= 0.46 else 'Organik'
         print(f"✅ Klasifikasi: {result}")
         return result, f"{confidence:.4f}"
     
